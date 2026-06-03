@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Banda de Mariachis - Sin Parpadeo</title>
+    <style>
+        /* --- ESTILOS GENERALES Y FONDO MINIMALISTA --- */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: #f4f4f6;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 15px;
+            overflow-x: hidden;
+        }
+
+        /* --- CONTENEDOR DE LAS FRASES DINÁMICAS --- */
+        .frase-container {
+            height: 140px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            width: 100%;
+            max-width: 600px;
+            margin-bottom: 20px;
+        }
+
+        .frase {
+            font-size: 1.6rem;
+            color: #2c3e50;
+            font-weight: 500;
+            font-style: italic;
+            line-height: 1.4;
+            white-space: pre-line;
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: opacity 0.5s ease, transform 0.5s ease;
+            display: none;
+        }
+
+        .frase.activa {
+            display: block;
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* --- BANDA DE MARIACHIS --- */
+        .banda-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 35px;
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .mariachi-sprite {
+            width: 220px;
+            height: auto; 
+            max-width: 30%;
+            object-fit: contain;
+            image-rendering: pixelated; /* Mantiene el pixel art nítido */
+            pointer-events: none;
+        }
+
+        /* --- BOTÓN CONTROL --- */
+        .btn-control {
+            background-color: #1a1a1a;
+            color: #ffffff;
+            border: none;
+            padding: 16px 45px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .btn-control:hover {
+            background-color: #333333;
+        }
+
+        .btn-control:active {
+            transform: scale(0.97);
+        }
+
+        .btn-control:disabled {
+            background-color: #777777;
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        /* --- TRUCO ANTI-PARPADEO: PRECARGA FORZADA EN EL DOM --- */
+        /* Colocamos las imágenes en un contenedor invisible para obligar al navegador a procesarlas en caché activa */
+        .precarga-oculta {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            border: 0;
+        }
+
+        /* --- OPTIMIZACIONES RESPONSIVE --- */
+        @media (max-width: 600px) {
+            .frase-container { height: 110px; margin-bottom: 15px; }
+            .frase { font-size: 1.25rem; }
+            .banda-container { gap: 5px; margin-bottom: 25px; }
+            .btn-control { padding: 14px 35px; font-size: 1rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="precarga-oculta">
+        <img src="mariachi1.png" alt="preload">
+        <img src="mariachi2.png" alt="preload">
+        <img src="mariachi3.png" alt="preload">
+        <img src="mariachi4.png" alt="preload">
+    </div>
+
+    <div class="frase-container">
+        <p id="f1" class="frase">Sin ti
+No podré vivir jamás
+Y pensar que nunca más
+Estarás junto a mí</p>
+        
+        <p id="f2" class="frase">Sin ti
+Que me puede ya importar
+Si lo que me hace llorar
+Está lejos de aquí</p>
+        
+        <p id="f3" class="frase">Sin ti
+No hay clemencia en mi dolor
+La esperanza de mi amor
+Te la llevas por fin</p>
+        
+        <p id="f4" class="frase">Sin ti
+Es inútil vivir
+Como inútil será
+El quererte olvidar</p>
+    </div>
+
+    <div class="banda-container">
+        <img class="mariachi-sprite" src="1.png" alt="Mariachi 1">
+        <img class="mariachi-sprite" src="1.png" alt="Mariachi 2">
+        <img class="mariachi-sprite" src="1.png" alt="Mariachi 3">
+    </div>
+
+    <button id="btn-presiona" class="btn-control">Presiona</button>
+
+    <audio id="musica-serenata" src="audio.mp3" preload="auto"></audio>
+
+    <script>
+        // --- CONFIGURACIÓN DE TIEMPOS DE LA LETRA (En segundos) ---
+        const subtitulos = [
+            { id: 'f1', tiempoInicio: 14.0, tiempoFin: 29.0 }, 
+            { id: 'f2', tiempoInicio: 30.0, tiempoFin: 45.0 }, 
+            { id: 'f3', tiempoInicio: 46.0, tiempoFin: 61.0 }, 
+            { id: 'f4', tiempoInicio: 62.0, tiempoFin: 75.0 }  
+        ];
+
+        // --- CONFIGURACIÓN DE ANIMACIÓN (SPRITES) ---
+        const fotogramas = ["1.png", "2.png", "3.png", "4.png"];
+        let indiceActual = 0;
+        let animacionIntervalo = null;
+        const velocidadMs = 150; 
+
+        // Referencias del DOM
+        const listaMariachis = document.querySelectorAll('.mariachi-sprite');
+        const elBtn = document.getElementById('btn-presiona');
+        const elAudio = document.getElementById('musica-serenata');
+        const todasLasFrases = document.querySelectorAll('.frase');
+
+        function reproducirAnimacion() {
+            indiceActual = (indiceActual + 1) % fotogramas.length;
+            listaMariachis.forEach(mariachi => {
+                mariachi.src = fotogramas[indiceActual];
+            });
+        }
+
+        function detenerTodo() {
+            clearInterval(animacionIntervalo);
+            animacionIntervalo = null;
+            indiceActual = 0;
+            listaMariachis.forEach(mariachi => {
+                mariachi.src = fotogramas[0];
+            });
+            todasLasFrases.forEach(f => f.classList.remove('activa'));
+            elBtn.textContent = "Presiona";
+            elBtn.disabled = false;
+        }
+
+        // CONTROL DE TIEMPO POR BLOQUES
+        elAudio.addEventListener('timeupdate', () => {
+            const tiempoActual = elAudio.currentTime;
+
+            subtitulos.forEach(item => {
+                const elemento = document.getElementById(item.id);
+                
+                if (tiempoActual >= item.tiempoInicio && tiempoActual < item.tiempoFin) {
+                    if (!elemento.classList.contains('activa')) {
+                        todasLasFrases.forEach(f => f.classList.remove('activa'));
+                        elemento.classList.add('activa');
+                    }
+                } else {
+                    if (tiempoActual >= item.tiempoFin || tiempoActual < item.tiempoInicio) {
+                        elemento.classList.remove('activa');
+                    }
+                }
+            });
+        });
+
+        // Evento botón
+        elBtn.addEventListener('click', () => {
+            elBtn.textContent = "Tocando...";
+            elBtn.disabled = true;
+
+            elAudio.play().then(() => {
+                if (!animacionIntervalo) {
+                    animacionIntervalo = setInterval(reproducirAnimacion, velocidadMs);
+                }
+            }).catch(error => {
+                console.error("Error al reproducir audio: ", error);
+                elBtn.disabled = false;
+                elBtn.textContent = "Presiona";
+            });
+        });
+
+        elAudio.addEventListener('ended', () => {
+            detenerTodo();
+        });
+    </script>
+
+</body>
+</html>
